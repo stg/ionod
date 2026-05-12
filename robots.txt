@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://ionod.se/sitemap.xml
