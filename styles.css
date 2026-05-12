@@ -502,10 +502,49 @@ p {
 }
 
 .contact-cta {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
   align-items: center;
-  justify-content: space-between;
   gap: 24px;
+}
+
+.contact-copy {
+  display: grid;
+  gap: 18px;
+}
+
+.contact-team {
+  display: grid;
+  grid-template-columns: 148px minmax(0, 1fr);
+  gap: 16px;
+  align-items: stretch;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-strong);
+}
+
+.contact-team img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 16px;
+}
+
+.contact-team-copy {
+  display: grid;
+  gap: 8px;
+}
+
+.contact-team-copy strong {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1rem;
+  line-height: 1.3;
+}
+
+.contact-team-copy p {
+  color: var(--muted);
+  font-size: 0.97rem;
 }
 
 .site-footer {
@@ -568,15 +607,12 @@ p {
 
 @media (max-width: 980px) {
   .site-header,
-  .contact-cta,
   .remote-section,
   .hero {
     grid-template-columns: 1fr;
   }
 
   .contact-cta {
-    flex-direction: column;
-    align-items: flex-start;
     border-radius: 28px;
   }
 
@@ -584,6 +620,10 @@ p {
   .hero-copy,
   .hero .signal-list {
     grid-column: auto;
+  }
+
+  .contact-cta {
+    grid-template-columns: 1fr;
   }
 
   .proof-strip,
@@ -714,6 +754,11 @@ p {
 
   .hero-grid-secondary {
     grid-template-columns: 1fr;
+  }
+
+  .contact-team {
+    grid-template-columns: 88px minmax(0, 1fr);
+    gap: 14px;
   }
 
   h1 {
