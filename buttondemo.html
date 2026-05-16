@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Button Test</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --page-bg: radial-gradient(circle at top, #3a3a3a 0%, #161616 55%, #090909 100%);
+      --panel-bg: rgba(255, 255, 255, 0.06);
+      --panel-border: rgba(255, 255, 255, 0.12);
+      --text: #f2f2f2;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: var(--page-bg);
+      color: var(--text);
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    .stage {
+      display: grid;
+      gap: 1rem;
+      justify-items: center;
+      min-height: 460px;
+      padding: 2rem 3.5rem 2.5rem;
+      background:
+        radial-gradient(circle at var(--light-x, 50%) 0%,
+          rgba(255, 255, 220, 0.24) 0%,
+          rgba(255, 255, 220, 0.12) 18%,
+          rgba(255, 255, 255, 0.05) 34%,
+          rgba(255, 255, 255, 0.02) 48%,
+          rgba(255, 255, 255, 0.00) 62%),
+        var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 24px;
+      backdrop-filter: blur(12px);
+    }
+
+    .stage-layout {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 1rem;
+      align-items: start;
+    }
+
+    .stage-main {
+      display: grid;
+      gap: 1rem;
+      justify-items: center;
+    }
+
+    .controls {
+      width: min(420px, 80vw);
+      display: grid;
+      gap: 0.4rem;
+    }
+
+    .controls label {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      font-size: 0.9rem;
+      color: rgba(255, 255, 255, 0.88);
+    }
+
+    .controls input[type="range"] {
+      width: 100%;
+    }
+
+    .side-controls {
+      display: grid;
+      justify-items: center;
+      align-content: start;
+      gap: 0.5rem;
+      padding-top: 0.25rem;
+      color: rgba(255, 255, 255, 0.88);
+      font-size: 0.9rem;
+    }
+
+    .side-controls .value {
+      min-width: 8ch;
+      text-align: center;
+      display: inline-block;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .side-controls input[type="range"] {
+      writing-mode: vertical-lr;
+      direction: rtl;
+      width: 32px;
+      height: 220px;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 1.5rem;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: nowrap;
+      margin-bottom: 0.75rem;
+      min-height: 160px;
+    }
+
+    .red-button {
+      display: inline-grid;
+      place-items: center;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+      transition: transform 120ms ease, filter 120ms ease;
+    }
+
+    .red-button-frame {
+      display: grid;
+      place-items: center;
+    }
+
+    .red-button:hover {
+      transform: translateY(-2px);
+      filter: brightness(1.05);
+    }
+
+    .red-button:active {
+      transform: translateY(1px) scale(0.985);
+      filter: brightness(0.95);
+    }
+
+    .red-button:focus-visible {
+      outline: 3px solid rgba(255, 255, 255, 0.5);
+      outline-offset: 6px;
+      border-radius: 999px;
+    }
+
+    .red-button svg {
+      display: block;
+      height: auto;
+      overflow: visible;
+    }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <div class="stage-layout">
+      <div class="stage-main">
+        <div id="button-host" class="button-row"></div>
+        <div id="status">Press the button</div>
+        <div class="controls">
+          <label for="light-angle">
+            <span>Light position</span>
+            <span id="light-angle-value">50%</span>
+          </label>
+          <input id="light-angle" type="range" min="0" max="100" step="1" value="50">
+        </div>
+      </div>
+      <div class="side-controls">
+        <span>Angle</span>
+        <span id="tilt-angle-value" class="value">35.8 deg</span>
+        <input id="tilt-angle" type="range" min="0" max="45" step="0.1" value="35.8">
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const BUTTON_VIEWBOX = {
+      x: -1200,
+      y: -1300,
+      width: 2400,
+      height: 2400
+    };
+
+    function svgTag(tagName, attributes = {}) {
+      const element = document.createElementNS("http://www.w3.org/2000/svg", tagName);
+
+      for (const [name, value] of Object.entries(attributes)) {
+        element.setAttribute(name, String(value));
+      }
+
+      return element;
+    }
+
+    function svgEllipse({ cx, cy, rx, ry, fill }) {
+      return svgTag("ellipse", { cx, cy, rx, ry, fill });
+    }
+
+    function insetEllipse(layer, inset) {
+      return {
+        ...layer,
+        rx: layer.rx - inset,
+        ry: layer.ry - inset
+      };
+    }
+
+    function svgDrapedEllipse({ cx, cy, rx, ry, skirt, fill }) {
+      const kappa = 0.5522847498307936;
+      const ox = rx * kappa;
+      const oy = ry * kappa;
+      const left = cx - rx;
+      const right = cx + rx;
+      const top = cy - ry;
+      const bottom = cy + ry;
+      const skirtY = cy + skirt;
+
+      const d = [
+        `M ${right} ${cy}`,
+        `C ${right} ${cy + oy} ${cx + ox} ${bottom} ${cx} ${bottom}`,
+        `C ${cx - ox} ${bottom} ${left} ${cy + oy} ${left} ${cy}`,
+        `L ${left} ${skirtY}`,
+        `C ${left} ${skirtY + oy} ${cx - ox} ${skirtY + ry} ${cx} ${skirtY + ry}`,
+        `C ${cx + ox} ${skirtY + ry} ${right} ${skirtY + oy} ${right} ${skirtY}`,
+        `L ${right} ${cy}`,
+        `C ${right} ${cy - oy} ${cx + ox} ${top} ${cx} ${top}`,
+        `C ${cx - ox} ${top} ${left} ${cy - oy} ${left} ${cy}`,
+        `C ${left} ${cy + oy} ${cx - ox} ${bottom} ${cx} ${bottom}`,
+        `C ${cx + ox} ${bottom} ${right} ${cy + oy} ${right} ${cy}`,
+        "Z"
+      ].join(" ");
+
+      return svgTag("path", { d, fill });
+    }
+
+    function clamp01(value) {
+      return Math.max(0, Math.min(1, value));
+    }
+
+    function hexToRgb(hex) {
+      const normalized = hex.replace("#", "");
+      const full = normalized.length === 3
+        ? normalized.split("").map((part) => part + part).join("")
+        : normalized;
+
+      return {
+        r: parseInt(full.slice(0, 2), 16),
+        g: parseInt(full.slice(2, 4), 16),
+        b: parseInt(full.slice(4, 6), 16)
+      };
+    }
+
+    function rgbToHex({ r, g, b }) {
+      const toHex = (channel) => Math.round(channel).toString(16).padStart(2, "0");
+      return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    }
+
+    function mixColors(colorA, colorB, amount) {
+      const a = hexToRgb(colorA);
+      const b = hexToRgb(colorB);
+      const t = clamp01(amount);
+
+      return rgbToHex({
+        r: a.r + ((b.r - a.r) * t),
+        g: a.g + ((b.g - a.g) * t),
+        b: a.b + ((b.b - a.b) * t)
+      });
+    }
+
+    function lighten(color, amount) {
+      return mixColors(color, "#ffffff", amount);
+    }
+
+    function darken(color, amount) {
+      return mixColors(color, "#000000", amount);
+    }
+
+    function gradientLineFromAngle(angleDeg) {
+      const radians = (angleDeg - 90) * (Math.PI / 180);
+      const dx = Math.cos(radians);
+      const dy = Math.sin(radians);
+      const scale = 0.5 / Math.max(Math.abs(dx), Math.abs(dy), 0.0001);
+
+      return {
+        x1: 0.5 - (dx * scale),
+        y1: 0.5 - (dy * scale),
+        x2: 0.5 + (dx * scale),
+        y2: 0.5 + (dy * scale)
+      };
+    }
+
+    function gradientAttrs(id, angleDeg) {
+      const line = gradientLineFromAngle(angleDeg);
+      return {
+        id,
+        gradientUnits: "objectBoundingBox",
+        x1: line.x1,
+        y1: line.y1,
+        x2: line.x2,
+        y2: line.y2
+      };
+    }
+
+    function appendAll(parent, children) {
+      for (const child of children) {
+        parent.appendChild(child);
+      }
+    }
+
+    function getButtonFrameMetrics(config = {}) {
+      const {
+        width = DEFAULT_BUTTON_CONFIG.width
+      } = config;
+
+      const widthScale = width / BUTTON_VIEWBOX.width;
+
+      return {
+        width,
+        height: BUTTON_VIEWBOX.height * widthScale
+      };
+    }
+
+    function createButtonGradientIds(prefix) {
+      return {
+        grad0: `${prefix}-grad-0`,
+        grad1: `${prefix}-grad-1`,
+        grad2: `${prefix}-grad-2`,
+        grad3: `${prefix}-grad-3`,
+        grad4: `${prefix}-grad-4`,
+        grad5: `${prefix}-grad-5`,
+        grad6: `${prefix}-grad-6`,
+        grad7: `${prefix}-grad-7`
+      };
+    }
+
+    function createGradientDefs({
+      ids,
+      baseColor = "#826d6d",
+      buttonColor = "#e33424",
+      lightAngle = 28
+    } = {}) {
+      const defs = svgTag("defs");
+
+      const baseFlat = darken(baseColor, 0.68);
+      const baseMedium = mixColors(darken(baseColor, 0.45), baseColor, 0.55);
+      const baseLight = lighten(baseColor, 0.58);
+      const baseHighlight = lighten(baseColor, 0.72);
+      const buttonDarkA = darken(buttonColor, 0.74);
+      const buttonDarkB = darken(buttonColor, 0.7);
+      const buttonMid = darken(buttonColor, 0.08);
+      const buttonHighlight = lighten(buttonColor, 0.96);
+      const buttonCoreLight = lighten(buttonColor, 0.78);
+      const buttonCoreDark = darken(buttonColor, 0.62);
+
+      const metalAngle = lightAngle;
+      const buttonAngle = lightAngle + 6;
+      const arcRadians = (clamp01(lightAngle / 180) * Math.PI);
+      const coreCenterX = 0.5;
+      const coreCenterY = 0.5;
+      const coreRadiusX = 0.4;
+      const coreRadiusY = 0.4;
+      const coreShineX = coreCenterX - (Math.cos(arcRadians) * coreRadiusX);
+      const coreShineY = coreCenterY - (Math.sin(arcRadians) * coreRadiusY);
+
+      const gradients = [
+        {
+          tag: "linearGradient",
+          attrs: gradientAttrs(ids.grad0, 90),
+          stops: [
+            { offset: "0", "stop-color": darken(buttonColor, 0.38) },
+            { offset: "1", "stop-color": darken(buttonColor, 0.9) }
+          ]
+        },
+        {
+          tag: "linearGradient",
+          attrs: gradientAttrs(ids.grad1, 90),
+          stops: [
+            { offset: "0", "stop-color": baseFlat },
+            { offset: "1", "stop-color": baseFlat }
+          ]
+        },
+        {
+          tag: "linearGradient",
+          attrs: gradientAttrs(ids.grad2, metalAngle),
+          stops: [
+            { offset: "0", "stop-color": baseFlat },
+            { offset: "0.25098", "stop-color": baseMedium },
+            { offset: "0.501961", "stop-color": baseLight },
+            { offset: "1", "stop-color": baseColor }
+          ]
+        },
+        {
+          tag: "linearGradient",
+          attrs: gradientAttrs(ids.grad3, buttonAngle),
+          stops: [
+            { offset: "0", "stop-color": buttonDarkA },
+            { offset: "0.270588", "stop-color": buttonColor },
+            { offset: "0.501961", "stop-color": buttonHighlight },
+            { offset: "0.639216", "stop-color": buttonMid },
+            { offset: "1", "stop-color": buttonDarkB }
+          ]
+        },
+        {
+          tag: "linearGradient",
+          attrs: gradientAttrs(ids.grad4, metalAngle + 2),
+          stops: [
+            { offset: "0", "stop-color": baseFlat },
+            { offset: "0.501961", "stop-color": baseHighlight },
+            { offset: "1", "stop-color": baseColor }
+          ]
+        },
+        {
+          tag: "linearGradient",
+          attrs: gradientAttrs(ids.grad5, buttonAngle + 2),
+          stops: [
+            { offset: "0", "stop-color": darken(buttonColor, 0.68) },
+            { offset: "0.501961", "stop-color": buttonColor },
+            { offset: "1", "stop-color": darken(buttonColor, 0.38) }
+          ]
+        },
+        {
+          tag: "linearGradient",
+          attrs: gradientAttrs(ids.grad6, metalAngle - 3),
+          stops: [
+            { offset: "0", "stop-color": baseFlat },
+            { offset: "0.25098", "stop-color": baseMedium },
+            { offset: "0.501961", "stop-color": baseLight },
+            { offset: "1", "stop-color": baseColor }
+          ]
+        },
+        {
+          tag: "radialGradient",
+          attrs: {
+            id: ids.grad7,
+            gradientUnits: "objectBoundingBox",
+            cx: clamp01(coreShineX),
+            cy: clamp01(coreShineY),
+            r: 0.95,
+            fx: clamp01(coreShineX),
+            fy: clamp01(coreShineY)
+          },
+          stops: [
+            { offset: "0", "stop-color": buttonCoreLight },
+            { offset: "0.219608", "stop-color": buttonColor },
+            { offset: "1", "stop-color": buttonCoreDark }
+          ]
+        }
+      ];
+
+      for (const gradientDef of gradients) {
+        const gradient = svgTag(gradientDef.tag, gradientDef.attrs);
+        for (const stopDef of gradientDef.stops) {
+          gradient.appendChild(svgTag("stop", stopDef));
+        }
+        defs.appendChild(gradient);
+      }
+
+      return defs;
+    }
+
+    function solveSmearLayerAlphas(steps, maxAlpha = 0.5) {
+      const layerAlphas = [];
+      let previousTarget = 0;
+
+      for (let index = 1; index <= steps; index += 1) {
+        const target = maxAlpha * (index / steps);
+        const layerAlpha = 1 - ((1 - target) / (1 - previousTarget));
+        layerAlphas.push(Math.max(0, Math.min(1, layerAlpha)));
+        previousTarget = target;
+      }
+
+      return layerAlphas;
+    }
+
+    function svgSmear(
+      layer,
+      step,
+      distance,
+      { color = "#cf2418", maxAlpha = 0.5 } = {}
+    ) {
+      const group = svgTag("g");
+      const steps = Math.max(1, Math.ceil(distance / step));
+      const layerAlphas = solveSmearLayerAlphas(steps, maxAlpha);
+      const { r, g, b } = hexToRgb(color);
+
+      for (let index = 1; index <= steps; index += 1) {
+        group.appendChild(
+          svgEllipse({
+            ...layer,
+            cy: layer.cy + (index * step),
+            fill: `rgba(${r}, ${g}, ${b}, ${layerAlphas[index - 1]})`
+          })
+        );
+      }
+
+      return group;
+    }
+
+    const DEFAULT_BUTTON_CONFIG = {
+      width: 260,
+      ariaLabel: "Button",
+      lightAngle: 28,
+      angle: 35.8,
+      lineThickness: 30,
+      baseHeight: 341.38225815059454,
+      baseRaise: 170.69112907529727,
+      buttonHeight: 341.38225815059454,
+      buttonInset: 120,
+      baseWidth: 2250,
+      baseColor: "#808080",
+      buttonColor: "#afff00",
+      lineColor: "#000000"
+    };
+
+    function buildButtonSvg(config = {}) {
+      const {
+        idPrefix = "button",
+        pressed = false,
+        lightAngle = DEFAULT_BUTTON_CONFIG.lightAngle,
+        angle = DEFAULT_BUTTON_CONFIG.angle,
+        lineThickness = DEFAULT_BUTTON_CONFIG.lineThickness,
+        baseHeight = DEFAULT_BUTTON_CONFIG.baseHeight,
+        baseRaise = DEFAULT_BUTTON_CONFIG.baseRaise,
+        buttonHeight = DEFAULT_BUTTON_CONFIG.buttonHeight,
+        buttonInset = DEFAULT_BUTTON_CONFIG.buttonInset,
+        baseWidth = DEFAULT_BUTTON_CONFIG.baseWidth,
+        baseColor = DEFAULT_BUTTON_CONFIG.baseColor,
+        buttonColor = DEFAULT_BUTTON_CONFIG.buttonColor,
+        lineColor = DEFAULT_BUTTON_CONFIG.lineColor,
+        width = DEFAULT_BUTTON_CONFIG.width
+      } = config;
+
+      const svg = svgTag("svg", {
+        xmlns: "http://www.w3.org/2000/svg",
+        viewBox: `${BUTTON_VIEWBOX.x} ${BUTTON_VIEWBOX.y} ${BUTTON_VIEWBOX.width} ${BUTTON_VIEWBOX.height}`,
+        role: "img",
+        "aria-hidden": "true"
+      });
+
+      const widthScale = width / DEFAULT_BUTTON_CONFIG.width;
+      const activeButtonHeight = pressed ? 0 : buttonHeight;
+      const baseShadowBlur = 100 * widthScale;
+      const baseShadowOpacity = 1;
+      const baseShadowScaleX = 100 * widthScale;
+      const baseShadowScaleY = 100 * widthScale;
+      const buttonShadowBlur = 100 * widthScale;
+      const buttonShadowOpacity = 1;
+      const buttonShadowScaleX = 100 * widthScale;
+      const buttonShadowScaleY = 100 * widthScale;
+      const pressedButtonShadowScale = 0.22;
+      const pressedButtonShadowBlur = 22 * widthScale;
+      const pressedButtonShadowOpacity = 0.28;
+      const baseSmearAlpha = 0.2;
+      const buttonSmearAlpha = 0.25;
+      const pressedButtonSmearAlpha = 0.08;
+      const angleRadians = (angle * Math.PI) / 180;
+      const baseAspect = Math.cos(angleRadians);
+      const depthScale = Math.sin(angleRadians);
+      const projectedBaseHeight = baseHeight * depthScale;
+      const projectedBaseRaise = baseRaise * depthScale;
+      const lightRadians = (clamp01(lightAngle / 180) * Math.PI);
+      const baseShadowDx = Math.cos(lightRadians) * baseShadowScaleX;
+      const baseShadowDy = 18 + (Math.sin(lightRadians) * baseShadowScaleY);
+      const buttonShadowDx = Math.cos(lightRadians) * buttonShadowScaleX;
+      const buttonShadowDy = 18 + (Math.sin(lightRadians) * buttonShadowScaleY);
+
+      const basePlane = {
+        cx: 0,
+        cy: -projectedBaseHeight,
+        rx: baseWidth / 2,
+        ry: (baseWidth / 2) * baseAspect
+      };
+      const baseRimOuter = insetEllipse(basePlane, lineThickness - 2);
+      const baseRimInner = insetEllipse(baseRimOuter, lineThickness);
+      const baseHole = {
+        cx: 0, cy: 0 - projectedBaseHeight - projectedBaseRaise,
+        rx: (baseWidth) / 2 - buttonInset,
+        ry:  ((baseWidth) / 2 - buttonInset) * baseAspect
+
+      };
+      const buttonShell = {...insetEllipse(baseHole, lineThickness*2),
+        cy: baseHole.cy - (activeButtonHeight * depthScale)
+      }
+      const buttonFace = {
+        ...insetEllipse(buttonShell, lineThickness),
+        cy: buttonShell.cy
+      };
+      const buttonFaceMid = insetEllipse(buttonFace, lineThickness - 8);
+      const buttonFaceCore = insetEllipse(buttonFaceMid, lineThickness + 10);
+      const gradientIds = createButtonGradientIds(idPrefix);
+
+      svg.appendChild(createGradientDefs({
+        ids: gradientIds,
+        baseColor,
+        buttonColor,
+        lightAngle
+      }));
+
+      const baseShadowGroup = svgTag("g");
+      baseShadowGroup.style.filter = `drop-shadow(${baseShadowDx}px ${baseShadowDy}px ${baseShadowBlur}px rgba(0, 0, 0, ${baseShadowOpacity}))`;
+      const buttonShadowGroup = svgTag("g");
+      buttonShadowGroup.style.filter = pressed
+        ? `drop-shadow(${buttonShadowDx * pressedButtonShadowScale}px ${buttonShadowDy * pressedButtonShadowScale}px ${pressedButtonShadowBlur}px rgba(0, 0, 0, ${pressedButtonShadowOpacity}))`
+        : `drop-shadow(${buttonShadowDx}px ${buttonShadowDy}px ${buttonShadowBlur}px rgba(0, 0, 0, ${buttonShadowOpacity}))`;
+
+      const baseShadowShapes = [
+        svgDrapedEllipse({ ...basePlane, skirt: projectedBaseHeight, fill: "#000000" }),
+        svgEllipse({ ...baseRimOuter, fill: "#000000" }),
+        svgEllipse({ ...baseRimInner, fill: "#000000" }),
+        svgEllipse({ ...baseHole, fill: "#000000" }),
+        svgEllipse({ ...insetEllipse(baseHole, lineThickness), fill: "#000000" })
+      ];
+
+      const buttonShadowShapes = [
+        svgDrapedEllipse({ ...buttonShell, skirt: activeButtonHeight * depthScale, fill: "#000000" }),
+        svgEllipse({ ...buttonFace, fill: "#000000" }),
+        svgEllipse({ ...buttonFaceMid, fill: "#000000" }),
+        svgEllipse({ ...buttonFaceCore, fill: "#000000" })
+      ];
+
+      const group1Visible = [
+        svgDrapedEllipse({ ...basePlane, skirt: projectedBaseHeight, fill: lineColor }),
+        svgSmear(baseRimOuter, lineThickness, projectedBaseHeight, { color: baseColor, maxAlpha: baseSmearAlpha }),
+        svgEllipse({ ...baseRimOuter, fill: `url(#${gradientIds.grad4})` }),
+        svgEllipse({ ...baseRimInner, fill: `url(#${gradientIds.grad6})` }),
+        svgEllipse({ ...baseHole, fill: `url(#${gradientIds.grad2})` }),
+        svgEllipse({ ...insetEllipse(baseHole, lineThickness), fill: lineColor })
+      ];
+      const group2Visible = [
+        svgDrapedEllipse({ ...buttonShell, skirt: activeButtonHeight * depthScale, fill: lineColor }),
+        svgSmear(buttonFace, lineThickness, activeButtonHeight * depthScale, { color: buttonColor, maxAlpha: pressed ? pressedButtonSmearAlpha : buttonSmearAlpha }),
+        svgEllipse({ ...buttonFace, fill: `url(#${gradientIds.grad3})` }),
+        svgEllipse({ ...buttonFaceMid, fill: `url(#${gradientIds.grad5})` }),
+        svgEllipse({ ...buttonFaceCore, fill: `url(#${gradientIds.grad7})` })
+      ];
+      appendAll(baseShadowGroup, baseShadowShapes);
+      appendAll(buttonShadowGroup, buttonShadowShapes);
+      svg.appendChild(baseShadowGroup);
+      appendAll(svg, group1Visible);
+      svg.appendChild(buttonShadowGroup);
+      appendAll(svg, group2Visible);
+
+      return svg;
+    }
+
+    function createButton(config = {}) {
+      const mergedConfig = { ...DEFAULT_BUTTON_CONFIG, ...config };
+      const { width, ariaLabel, onClick } = mergedConfig;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "red-button";
+      button.setAttribute("aria-label", ariaLabel);
+      let pressed = false;
+      let lightAngle = mergedConfig.lightAngle;
+
+      function render() {
+        button.replaceChildren();
+        const svg = buildButtonSvg({ ...mergedConfig, pressed, lightAngle });
+        const frameMetrics = getButtonFrameMetrics(mergedConfig);
+        svg.style.width = `${frameMetrics.width}px`;
+        svg.style.height = `${frameMetrics.height}px`;
+        const frame = document.createElement("div");
+        frame.className = "red-button-frame";
+        frame.style.width = `${frameMetrics.width}px`;
+        frame.style.height = `${frameMetrics.height}px`;
+        frame.appendChild(svg);
+        button.appendChild(frame);
+      }
+
+      function setPressed(nextPressed) {
+        if (pressed === nextPressed) {
+          return;
+        }
+        pressed = nextPressed;
+        render();
+      }
+
+      render();
+
+      if (typeof onClick === "function") {
+        button.addEventListener("click", onClick);
+      }
+
+      button.addEventListener("pointerdown", () => setPressed(true));
+      button.addEventListener("pointerup", () => setPressed(false));
+      button.addEventListener("pointerleave", () => setPressed(false));
+      button.addEventListener("pointercancel", () => setPressed(false));
+      button.addEventListener("blur", () => setPressed(false));
+
+      button.setLightAngle = (nextLightAngle) => {
+        lightAngle = nextLightAngle;
+        mergedConfig.lightAngle = nextLightAngle;
+        render();
+      };
+      button.setLightPosition = (positionX, sourcePoint) => {
+        const rect = button.getBoundingClientRect();
+        const buttonCenterX = rect.left + (rect.width / 2);
+        const buttonCenterY = rect.top + (rect.height / 2);
+        const dx = buttonCenterX - sourcePoint.x;
+        const dy = buttonCenterY - sourcePoint.y;
+        const radians = Math.atan2(Math.max(dy, 1), dx);
+        const nextLightAngle = clamp01(radians / Math.PI) * 180;
+        lightAngle = nextLightAngle;
+        mergedConfig.lightAngle = nextLightAngle;
+        render();
+      };
+      button.setProps = (nextConfig = {}) => {
+        Object.assign(mergedConfig, nextConfig);
+        if (typeof nextConfig.lightAngle === "number") {
+          lightAngle = nextConfig.lightAngle;
+        }
+        render();
+      };
+      button.getProps = () => ({ ...mergedConfig, pressed, lightAngle });
+
+      return button;
+    }
+
+    const status = document.getElementById("status");
+    const host = document.getElementById("button-host");
+    const stage = document.querySelector(".stage");
+    const stageMain = document.querySelector(".stage-main");
+    const lightAngleInput = document.getElementById("light-angle");
+    const lightAngleValue = document.getElementById("light-angle-value");
+    const tiltAngleInput = document.getElementById("tilt-angle");
+    const tiltAngleValue = document.getElementById("tilt-angle-value");
+
+    const demoButton = createButton({
+      idPrefix: "demo-1",
+      width: 260,
+      ariaLabel: "Activate demo red button",
+      lightAngle: 28,
+      angle: DEFAULT_BUTTON_CONFIG.angle,
+      lineThickness: 30,
+      baseHeight: DEFAULT_BUTTON_CONFIG.baseHeight,
+      baseRaise: DEFAULT_BUTTON_CONFIG.baseRaise,
+      buttonHeight: DEFAULT_BUTTON_CONFIG.buttonHeight,
+      buttonInset: 180,
+      baseWidth: 2250,
+      baseColor: "#808080",
+      buttonColor: "#afff00",
+      lineColor: "#000000",
+      onClick: () => {
+        status.textContent = `Pressed at ${new Date().toLocaleTimeString()}`;
+      }
+    });
+
+    const demoButtonAlt = createButton({
+      idPrefix: "demo-2",
+      width: 260,
+      ariaLabel: "Activate alternate demo button",
+      lightAngle: 28,
+      angle: DEFAULT_BUTTON_CONFIG.angle,
+      lineThickness: 30,
+      baseHeight: DEFAULT_BUTTON_CONFIG.baseHeight,
+      baseRaise: DEFAULT_BUTTON_CONFIG.baseRaise,
+      buttonHeight: DEFAULT_BUTTON_CONFIG.buttonHeight,
+      buttonInset: 180,
+      baseWidth: 2250,
+      baseColor: "#5f6f86",
+      buttonColor: "#ff7a18",
+      lineColor: "#000000",
+      onClick: () => {
+        status.textContent = `Alternate pressed at ${new Date().toLocaleTimeString()}`;
+      }
+    });
+
+    host.appendChild(demoButton);
+    host.appendChild(demoButtonAlt);
+
+    function updateButtonWidths() {
+      const gapPx = 24;
+      const maxWidth = DEFAULT_BUTTON_CONFIG.width;
+      const minWidth = 120;
+      const availableWidth = stageMain.clientWidth;
+      const nextWidth = Math.max(minWidth, Math.min(maxWidth, (availableWidth - gapPx) / 2));
+
+      demoButton.setProps({ width: nextWidth });
+      demoButtonAlt.setProps({ width: nextWidth });
+    }
+
+    function updateLightSource() {
+      const lightPercent = Number(lightAngleInput.value);
+      lightAngleValue.textContent = `${lightPercent}%`;
+      stage.style.setProperty("--light-x", `${lightPercent}%`);
+
+      const stageRect = stage.getBoundingClientRect();
+      const sourcePoint = {
+        x: stageRect.left + (stageRect.width * (lightPercent / 100)),
+        y: stageRect.top
+      };
+
+      demoButton.setLightPosition(lightPercent, sourcePoint);
+      demoButtonAlt.setLightPosition(lightPercent, sourcePoint);
+    }
+
+    lightAngleInput.addEventListener("input", updateLightSource);
+    tiltAngleInput.addEventListener("input", () => {
+      const nextAngle = Number(tiltAngleInput.value);
+      tiltAngleValue.textContent = `${nextAngle.toFixed(1)} deg`;
+      demoButton.setProps({ angle: nextAngle });
+      demoButtonAlt.setProps({ angle: nextAngle });
+    });
+
+    tiltAngleValue.textContent = `${Number(tiltAngleInput.value).toFixed(1)} deg`;
+    window.addEventListener("resize", updateButtonWidths);
+    updateButtonWidths();
+    updateLightSource();
+  </script>
+</body>
+</html>
